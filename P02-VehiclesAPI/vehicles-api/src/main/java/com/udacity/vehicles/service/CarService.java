@@ -1,7 +1,7 @@
 package com.udacity.vehicles.service;
 
 import com.udacity.vehicles.client.maps.MapsClient;
-import com.udacity.vehicles.client.prices.PriceClient;
+import com.udacity.vehicles.client.prices.Price;
 import com.udacity.vehicles.domain.Location;
 import com.udacity.vehicles.domain.car.Car;
 import com.udacity.vehicles.domain.car.CarRepository;
@@ -9,8 +9,7 @@ import com.udacity.vehicles.domain.car.CarRepository;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -24,13 +23,16 @@ import reactor.core.publisher.Mono;
 public class CarService {
 
     private final CarRepository repository;
-    private final PriceClient priceClient;
+
+    private final WebClient.Builder webClientBuilder;
+    @Value("${pricing.endpoint}")
+    private String pricingEndpoint;
+
     private final MapsClient mapsClient;
 
-    public CarService(CarRepository repository, PriceClient priceClient,
-                      MapsClient mapsClient) {
+    public CarService(CarRepository repository, WebClient.Builder pricing, MapsClient mapsClient) {
         this.repository = repository;
-        this.priceClient = priceClient;
+        this.webClientBuilder = pricing;
         this.mapsClient = mapsClient;
     }
 
@@ -51,12 +53,19 @@ public class CarService {
      */
     public Car findById(Long id) {
 
+        // Lookup service by application name instead of hostname:port to support MSA
+        Mono<String> mono = webClientBuilder
+                .build()
+                .get()
+                .uri("http://price-service/prices/{id}", id)
+                .retrieve().bodyToMono(Price.class)
+                .map(priceData -> String.format("%s, %s!", priceData.getCurrency(), priceData.getPrice()));
+
         Car car = repository
                 .findById(id)
                 .orElseThrow(CarNotFoundException::new);
 
-        String price = priceClient.getPrice(id);
-        car.setPrice(price);
+        mono.subscribe(car::setPrice);
 
         Location location = mapsClient.getAddress(car.getLocation());
         car.setLocation(location);

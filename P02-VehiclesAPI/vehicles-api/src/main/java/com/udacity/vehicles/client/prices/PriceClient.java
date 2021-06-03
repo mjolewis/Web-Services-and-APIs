@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 /**
  * Implements a class to interface with the Pricing Client for price data.
@@ -13,10 +14,11 @@ public class PriceClient {
 
     private static final Logger log = LoggerFactory.getLogger(PriceClient.class);
 
-    private final WebClient client;
+    //private final WebClient client;
+    private final WebClient.Builder webClientBuilder;
 
-    public PriceClient(WebClient pricing) {
-        this.client = pricing;
+    public PriceClient(WebClient.Builder webClientBuilder) {
+        this.webClientBuilder = webClientBuilder;
     }
 
     // In a real-world application we'll want to add some resilience
@@ -33,17 +35,27 @@ public class PriceClient {
      *         service is down.
      */
     public String getPrice(Long vehicleId) {
+
         try {
-            Price price = client
-                    .get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("prices/" + vehicleId)
-                            //.queryParam("vehicleId", vehicleId)
-                            .build()
-                    )
+
+            Price price = webClientBuilder.build().get().uri("http://price-service/prices/{vehicleId}", vehicleId)
                     .retrieve().bodyToMono(Price.class).block();
 
-            return String.format("%s %s", price.getCurrency(), price.getPrice());
+
+//            Price price = client.get().uri().retrieve().bodyToMono(Price.class).block();
+            //price =       client.get().uri(pricingEndpoint + "{id}", id).retrieve().bodyToMono(Price.class).block()
+
+//            Price price = client
+//                    .get()
+//                    .uri(uriBuilder -> uriBuilder
+//                            //.path("prices/" + vehicleId)
+//                            .path("services/price/")
+//                            .queryParam("vehicleId", vehicleId)
+//                            .build()
+//                    )
+//                    .retrieve().bodyToMono(Price.class).block();
+
+           return String.format("%s %s", price.getCurrency(), price.getPrice());
 
         } catch (Exception e) {
             log.error("Unexpected error retrieving price for vehicle {}", vehicleId, e);
