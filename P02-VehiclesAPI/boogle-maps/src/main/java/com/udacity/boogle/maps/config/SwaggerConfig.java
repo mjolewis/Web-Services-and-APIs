@@ -1,4 +1,4 @@
-package com.udacity.vehicles.config;
+package com.udacity.boogle.maps.config;
 
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -25,6 +25,11 @@ import java.util.Collections;
  *********************************************************************************************************************/
 @Configuration
 @EnableSwagger2
+@ApiResponses(value = {
+        @ApiResponse(code = 400, message = "This is a bad request, please follow the API documentation for valid request format."),
+        @ApiResponse(code = 401, message = "Due to security constraints, your access request cannot be authorized."),
+        @ApiResponse(code = 500, message = "The server is down. Please make sure that the service is running.")
+})
 public class SwaggerConfig {
 
     @Bean
@@ -34,19 +39,19 @@ public class SwaggerConfig {
                 .apis(RequestHandlerSelectors.any())
                 .paths(PathSelectors.any())
                 .build()
-                .useDefaultResponseMessages(false)  // Custom messages included in the controller classes
+                .useDefaultResponseMessages(false)  // Custom messages included in controllers
                 .apiInfo(apiInfo());
     }
 
     private ApiInfo apiInfo() {
         return new ApiInfo(
-                "Vehicle API",
-                "Returns a list of vehicles",
+                "Maps API",
+                "Returns the logitude and latitude of a vehicle",
                 "1.0",
                 "http://www.udacity.com",
-                new Contact("Michael Lewis", "www.udacity.com", "test@gmail.com"),
+                new Contact("Michael Lewis", "http://www.udacity.com", "test@gmail.com"),
                 "License of API",
-                "http://www.udacity.com/license",
+                "http://www.udacity.com",
                 Collections.emptyList()
         );
     }

@@ -1,7 +1,7 @@
 package com.udacity.vehicles.service;
 
 import com.udacity.vehicles.client.maps.MapsClient;
-import com.udacity.vehicles.client.prices.Price;
+import com.udacity.vehicles.client.prices.PriceClient;
 import com.udacity.vehicles.domain.Location;
 import com.udacity.vehicles.domain.car.Car;
 import com.udacity.vehicles.domain.car.CarRepository;
@@ -9,10 +9,7 @@ import com.udacity.vehicles.domain.car.CarRepository;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 /**
  * Implements the car service create, read, update or delete
@@ -22,17 +19,13 @@ import reactor.core.publisher.Mono;
 @Service
 public class CarService {
 
-    private final CarRepository repository;
-
-    private final WebClient.Builder webClientBuilder;
-    @Value("${pricing.endpoint}")
-    private String pricingEndpoint;
-
+    private final CarRepository carRepository;
+    private final PriceClient priceClient;
     private final MapsClient mapsClient;
 
-    public CarService(CarRepository repository, WebClient.Builder pricing, MapsClient mapsClient) {
-        this.repository = repository;
-        this.webClientBuilder = pricing;
+    public CarService(CarRepository carRepository, PriceClient priceClient, MapsClient mapsClient) {
+        this.carRepository = carRepository;
+        this.priceClient = priceClient;
         this.mapsClient = mapsClient;
     }
 
@@ -42,7 +35,7 @@ public class CarService {
      * @return a list of all vehicles in the CarRepository
      */
     public List<Car> list() {
-        return repository.findAll();
+        return carRepository.findAll();
     }
 
     /**
@@ -53,21 +46,14 @@ public class CarService {
      */
     public Car findById(Long id) {
 
-        // Lookup service by application name instead of hostname:port to support MSA
-        Mono<String> mono = webClientBuilder
-                .build()
-                .get()
-                .uri("http://price-service/prices/{id}", id)
-                .retrieve().bodyToMono(Price.class)
-                .map(priceData -> String.format("%s, %s!", priceData.getCurrency(), priceData.getPrice()));
-
-        Car car = repository
+        Car car = carRepository
                 .findById(id)
                 .orElseThrow(CarNotFoundException::new);
 
-        mono.subscribe(car::setPrice);
+        String price = priceClient.getPrice(id);
+        car.setPrice(price);
 
-        Location location = mapsClient.getAddress(car.getLocation());
+        Location location = mapsClient.getAddress(car.getLocation(), id);
         car.setLocation(location);
 
         return car;
@@ -81,16 +67,16 @@ public class CarService {
      */
     public Car save(Car car) {
         if (car.getId() != null) {
-            return repository.findById(car.getId())
+            return carRepository.findById(car.getId())
                     .map(carToBeUpdated -> {
                         carToBeUpdated.setDetails(car.getDetails());
                         carToBeUpdated.setLocation(car.getLocation());
                         carToBeUpdated.setCondition(car.getCondition());
-                        return repository.save(carToBeUpdated);
+                        return carRepository.save(carToBeUpdated);
                     }).orElseThrow(CarNotFoundException::new);
         }
 
-        return repository.save(car);
+        return carRepository.save(car);
     }
 
     /**
@@ -100,11 +86,11 @@ public class CarService {
      */
     public void delete(Long id) {
 
-        Optional<Optional<Car>> optionalCars = Optional.of(repository.findById(id));
+        Optional<Optional<Car>> optionalCars = Optional.of(carRepository.findById(id));
         Optional<Car> optionalCar = optionalCars.get();
 
         if (optionalCar.isPresent()) {
-            repository.delete(optionalCar.get());
+            carRepository.delete(optionalCar.get());
         } else {
             throw new CarNotFoundException();
         }
